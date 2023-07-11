@@ -1,9 +1,0 @@
-{
-  "profiles": {
-    "LinAlgMpi": {
-      "commandName": "Executable",
-      "executablePath": "mpiexec",
-      "commandLineArgs": "-n 4 $(TargetDir)$(TargetName).exe"
-    }
-  }
-}
