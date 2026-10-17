@@ -3,11 +3,21 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 using MPI;
+using Xunit;
 
-namespace LinAlgMPI
+namespace LinAlgMpi.Tests
 {
-	public static class MPIUtilities
+	public static class Utilities
 	{
+		public static void AssertEqual(double[] expected, double[] actual, int precision)
+		{
+			Assert.Equal(expected.Length, actual.Length);
+			for (int i = 0; i < expected.Length; i++)
+			{
+				Assert.Equal(expected[i], actual[i], precision);
+			}
+		}
+
 		public static void AssistDebuggerAttachment(Intracommunicator comm)
 		{
 			DoSerially(comm, () => Console.WriteLine($"MPI process {comm.Rank}: PID = {Process.GetCurrentProcess().Id}"));

@@ -5,7 +5,7 @@ using System.Numerics;
 using System.Text;
 using MPI;
 
-namespace LinAlgMPI.LinearAlgebra
+namespace LinAlgMpi.LinearAlgebra
 {
     public static class IterativeMethodsMpi
     {
@@ -34,8 +34,7 @@ namespace LinAlgMPI.LinearAlgebra
             }
         }
 
-        public static void SolvePCG(Intracommunicator comm, double[,] A, double[] b, double[] x, int maxIterations,
-            double tolerance)
+        public static void SolvePCG(Intracommunicator comm, double[,] A, double[] b, double[] x, int maxIterations, double tolerance)
         {
             int n = b.Length;
 
@@ -51,7 +50,6 @@ namespace LinAlgMPI.LinearAlgebra
             double zrSqrt0 = double.NaN; // sqrt(z * r) of the initial iteration
 
             // Initial iteration
-
             // r = b - A*x
             MpiBLAS.MultiplyMatrixVectorMirrorStriped(comm, n, n, A, x, r);
             MpiBLAS.AxpbyMirror(comm, n, +1, b, -1, r, r);

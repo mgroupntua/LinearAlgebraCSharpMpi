@@ -4,7 +4,7 @@ using System.Text;
 using System.Threading.Tasks;
 using MPI;
 
-namespace LinAlgMPI.LinearAlgebra
+namespace LinAlgMpi.LinearAlgebra
 {
     public static class SerialBLAS
     {

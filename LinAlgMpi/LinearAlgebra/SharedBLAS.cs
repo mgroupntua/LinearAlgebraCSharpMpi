@@ -4,11 +4,10 @@ using System.Text;
 using System.Threading.Tasks;
 using MPI;
 
-namespace LinAlgMPI.LinearAlgebra
+namespace LinAlgMpi.LinearAlgebra
 {
     public static class SharedBLAS
     {
-
         public static void Axpby(int n, double a, double[] x, double b, double[] y, double[] result)
         {
             int numThreads = 4 /*System.Environment.ProcessorCount*/;

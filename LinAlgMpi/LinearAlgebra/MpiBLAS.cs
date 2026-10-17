@@ -4,12 +4,11 @@ using System.Text;
 using System.Threading.Tasks;
 using MPI;
 
-namespace LinAlgMPI.LinearAlgebra
+namespace LinAlgMpi.LinearAlgebra
 {
     public static class MpiBLAS
     {
-        public static void AxpbyMirror(Intracommunicator comm, int n, double a, double[] x, double b, double[] y, 
-            double[] result)
+        public static void AxpbyMirror(Intracommunicator comm, int n, double a, double[] x, double b, double[] y, double[] result)
         {
             // We need the result in all processes. Therefore we have to do all operations for each process.
             for (int i = 0; i < n; i++)
@@ -18,14 +17,13 @@ namespace LinAlgMPI.LinearAlgebra
             }
         }
 
-        public static void AxpbyDistributed(Intracommunicator comm, int n, double a, double[] x, double b, double[] y, 
-            double[] result)
+        public static void AxpbyDistributed(Intracommunicator comm, int n, double a, double[] x, double b, double[] y, double[] result)
         {
             // Calculate dot product of this process's subvector. Avoid padding entries
             int numProcesses = comm.Size;
             int chunkSize = (n - 1) / numProcesses + 1; // CEILING(numEntries / numThreads)
             int startGlobal = comm.Rank * chunkSize;
-            int endLocal = Math.Min(chunkSize, n - startGlobal);
+            int endLocal = Math.Min(chunkSize, n - startGlobal); // For the last process we have a few zeros for padding
             for (int i = 0; i < endLocal; i++)
             {
                 result[i] = a * x[i] + b * y[i];
@@ -97,8 +95,7 @@ namespace LinAlgMPI.LinearAlgebra
             return invD;
         }
 
-        public static void MultiplyMatrixVectorMirrorStriped(Intracommunicator comm, int m, int n, 
-            double[,] A, double[] x, double[] b)
+        public static void MultiplyMatrixVectorMirrorStriped(Intracommunicator comm, int m, int n, double[,] A, double[] x, double[] b)
         {
             Array.Clear(b, 0, n);
             int numProcesses = comm.Size;
@@ -130,7 +127,7 @@ namespace LinAlgMPI.LinearAlgebra
             }
         }
 
-        public static void DistributedToMirrorVector(Intracommunicator comm, double[] globalVector, double[] localVector)
+        public static void DistributedToMirrorVectorOLD(Intracommunicator comm, double[] globalVector, double[] localVector)
         {
             int globalSize = globalVector.Length;
             int numProcesses = comm.Size;
@@ -151,6 +148,27 @@ namespace LinAlgMPI.LinearAlgebra
                 Array.Copy(localVectors[p], 0, globalVector, startY, count);
                 startY += chunkSize;
             }
+        }
+
+        public static void DistributedToMirrorVector(Intracommunicator comm, double[] globalVector, double[] localVector)
+        {
+            int globalSize = globalVector.Length;
+            int numProcesses = comm.Size;
+            int chunkSize = (globalSize - 1) / numProcesses + 1; // CEILING(numEntries / numThreads)
+
+            // Define how many entries each local vector has
+            int[] numLocalEntries = new int[numProcesses];
+            Array.Fill(numLocalEntries, chunkSize);
+            //numLocalEntries[numProcesses - 1] = globalSize - chunkSize * (numProcesses - 1); // Adjust the last process's contribution
+
+			// Gather all local vector to the root process and then broadcast to the rest
+            int root = 0;
+            double[] buffer = new double[chunkSize * numProcesses]; // temporary buffer
+			comm.GatherFlattened(localVector, numLocalEntries, root, ref buffer);
+			comm.Broadcast(ref buffer, root);
+
+            // Copy the active part of the buffer to the global vector
+            Array.Copy(buffer, globalVector, globalSize);
         }
     }
 }
