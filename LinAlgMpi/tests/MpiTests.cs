@@ -11,67 +11,42 @@ namespace LinAlgMpi.Tests
 {
     public class MpiTests
     {
-		public static void TestAxpbyMirror(Intracommunicator comm)
+		public static void TestAxpby(Intracommunicator comm)
 		{
-			double[] x = TestProblem.VectorX;
-			double[] y = TestProblem.VectorY;
-			double[] result = new double[TestProblem.Size];
-			MpiBLAS.AxpbyMirror(comm, TestProblem.Size, 2, x, 3, y, result);
-			double[] expected = TestProblem.Vector2X3Y;
+			double[] x = DistributedUtilities.MirroredToDistributedVector(comm, TestProblem.VectorX);
+			double[] y = DistributedUtilities.MirroredToDistributedVector(comm, TestProblem.VectorY);
+			double[] result = DistributedUtilities.CreateDistributedVectorWithSameFormat(comm, x);
+
+			MpiBLAS.Axpby(comm, TestProblem.Size, 2, x, 3, y, result);
+			double[] expected = DistributedUtilities.MirroredToDistributedVector(comm, TestProblem.Vector2X3Y);
 
 			Utilities.AssertEqual(expected, result, 5);
 			Console.WriteLine($"Process {comm.Rank}: Test passed");
 		}
 
-        public static void TestAxpbyDistributed(Intracommunicator comm)
-        {
-			double[] x = Utilities.DistributeVector(comm, TestProblem.VectorX);
-			double[] y = Utilities.DistributeVector(comm, TestProblem.VectorY);
-			double[] result = Utilities.DistributeVector(comm, new double[TestProblem.Size]);
-
-			MpiBLAS.AxpbyDistributed(comm, TestProblem.Size, 2, x, 3, y, result);
-			double[] expected = Utilities.DistributeVector(comm, TestProblem.Vector2X3Y);
-
-			Utilities.AssertEqual(expected, result, 5);
-			Console.WriteLine($"Process {comm.Rank}: Test passed");
-		}
-
-		public static void TestDotProductMirror(Intracommunicator comm)
+		public static void TestDotProduct(Intracommunicator comm)
 		{
-			// Each process will own the whole vector, but only operate on a subvector.
-			double[] x = TestProblem.VectorX;
-			double[] y = TestProblem.VectorY;
+			// Each process will own only a part of the whole vector.
+			double[] x = DistributedUtilities.MirroredToDistributedVector(comm, TestProblem.VectorX);
+			double[] y = DistributedUtilities.MirroredToDistributedVector(comm, TestProblem.VectorY);
 
-			double result = MpiBLAS.DotProductMirror(comm, TestProblem.Size, x, y);
+			double result = MpiBLAS.DotProduct(comm, TestProblem.Size, x, y);
 			double expected = TestProblem.dotXY;
 
 			Assert.Equal(expected, result, 5);
 			Console.WriteLine($"Process {comm.Rank}: Test passed");
 		}
 
-		public static void TestDotProductDistributed(Intracommunicator comm)
+		public static void TestMultiplyMVStriped(Intracommunicator comm)
 		{
 			// Each process will own only a part of the whole vector.
-			double[] x = Utilities.DistributeVector(comm, TestProblem.VectorX);
-			double[] y = Utilities.DistributeVector(comm, TestProblem.VectorY);
-
-			double result = MpiBLAS.DotProductDistributed(comm, TestProblem.Size, x, y);
-			double expected = TestProblem.dotXY;
-
-			Assert.Equal(expected, result, 5);
-			Console.WriteLine($"Process {comm.Rank}: Test passed");
-		}
-
-		public static void TestMultiplyMVMirrorStriped(Intracommunicator comm)
-        {
-			// Each process will own only a part of the whole vector.
-			double[,] A = Utilities.DistributeMatrixStriped(comm, TestProblem.MatrixA);
-			double[] x = TestProblem.VectorX;
+			double[,] A = DistributedUtilities.MirroredToStripedMatrix(comm, TestProblem.MatrixA);
+			double[] x = DistributedUtilities.MirroredToDistributedVector(comm, TestProblem.VectorX);
 
 			int size = TestProblem.Size;
-			double[] result = new double[size];
-			MpiBLAS.MultiplyMatrixVectorMirrorStriped(comm, size, size, A, x, result);
-			double[] expected = TestProblem.VectorAx;
+			double[] result = DistributedUtilities.CreateDistributedVectorWithSameFormat(comm, x);
+			MpiBLAS.MultiplyMatrixVectorStriped(comm, size, size, A, x, result);
+			double[] expected = DistributedUtilities.MirroredToDistributedVector(comm, TestProblem.VectorAx);
 
 			Utilities.AssertEqual(expected, result, 5);
 			Console.WriteLine($"Process {comm.Rank}: Test passed");
@@ -79,32 +54,34 @@ namespace LinAlgMpi.Tests
 
 		public static void TestSolveJacobi(Intracommunicator comm)
 		{
-			double[,] A = Utilities.DistributeMatrixStriped(comm, TestProblem.MatrixA);
-			double[] b = TestProblem.VectorAx;
-			double[] expected = TestProblem.VectorX;
-			double[] x = new double[TestProblem.Size];
+			double[,] A = DistributedUtilities.MirroredToStripedMatrix(comm, TestProblem.MatrixA);
+			double[] b = DistributedUtilities.MirroredToDistributedVector(comm, TestProblem.VectorAx);
+			double[] expected = DistributedUtilities.MirroredToDistributedVector(comm, TestProblem.VectorX);
+			double[] x = DistributedUtilities.CreateDistributedVectorWithSameFormat(comm, b);
+			int n = TestProblem.Size;
 
 			int numIterations = 100;
 			double tolerance = 1E-7;
-			IterativeMethodsMpi.SolveJacobi(comm, A, b, x, numIterations, tolerance);
+			IterativeMethodsMpi.SolveJacobi(comm, n, A, b, x, numIterations, tolerance);
 
 			Utilities.AssertEqual(expected, x, 3);
 			Console.WriteLine($"Process {comm.Rank}: Test passed");
 		}
 
-		public static void TestSolvePCG(Intracommunicator comm)
+		public static void TestSolvePcg(Intracommunicator comm)
 		{
-			double[,] A = Utilities.DistributeMatrixStriped(comm, TestProblem.MatrixA);
-			double[] b = TestProblem.VectorAx;
-			double[] expected = TestProblem.VectorX;
-			double[] x = new double[TestProblem.Size];
+			double[,] A = DistributedUtilities.MirroredToStripedMatrix(comm, TestProblem.MatrixA);
+			double[] b = DistributedUtilities.MirroredToDistributedVector(comm, TestProblem.VectorAx);
+			double[] expected = DistributedUtilities.MirroredToDistributedVector(comm, TestProblem.VectorX);
+			double[] x = DistributedUtilities.CreateDistributedVectorWithSameFormat(comm, b);
+			int n = TestProblem.Size;
 
 			int numIterations = 100;
 			double tolerance = 1E-7;
-			IterativeMethodsMpi.SolvePCG(comm, A, b, x, numIterations, tolerance);
+			IterativeMethodsMpi.SolvePcg(comm, n, A, b, x, numIterations, tolerance);
 
 			Utilities.AssertEqual(expected, x, 5);
 			Console.WriteLine($"Process {comm.Rank}: Test passed");
 		}
-    }
+	}
 }

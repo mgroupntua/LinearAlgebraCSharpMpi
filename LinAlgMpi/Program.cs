@@ -10,10 +10,11 @@ namespace LinAlgMPI
 	{
 		static void Main(string[] args)
 		{
-			//NormalTests.TestPcgNoMpi();
+			NormalTests.TestPcgSerial();
+			NormalTests.TestPcgShared();
 
 			//HelloWorld(args);
-			RunMpiTests(debug: false, args, MpiTests.TestAxpbyMirror, MpiTests.TestAxpbyDistributed, MpiTests.TestDotProductMirror, MpiTests.TestDotProductDistributed, MpiTests.TestMultiplyMVMirrorStriped, MpiTests.TestSolveJacobi, MpiTests.TestSolvePCG);
+			//RunMpiTests(debug: true, args, MpiTests.TestAxpby, MpiTests.TestDotProduct, MpiTests.TestMultiplyMVStriped, MpiTests.TestSolvePcg, MpiTests.TestSolveJacobi);
 		}
 
 		public static void HelloWorld(string[] args)

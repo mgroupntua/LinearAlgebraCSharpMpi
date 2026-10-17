@@ -8,167 +8,80 @@ namespace LinAlgMpi.LinearAlgebra
 {
     public static class MpiBLAS
     {
-        public static void AxpbyMirror(Intracommunicator comm, int n, double a, double[] x, double b, double[] y, double[] result)
-        {
-            // We need the result in all processes. Therefore we have to do all operations for each process.
-            for (int i = 0; i < n; i++)
-            {
-                result[i] = a * x[i] + b * y[i];
-            }
-        }
+		public static void Axpby(Intracommunicator comm, int n, double a, double[] x, double b, double[] y, double[] result)
+		{
+			// Each process gets an array with only its corresponding entries
+			for (int i = 0; i < x.Length; i++)
+			{
+				result[i] = a * x[i] + b * y[i];
+			}
+		}
 
-        public static void AxpbyDistributed(Intracommunicator comm, int n, double a, double[] x, double b, double[] y, double[] result)
-        {
-            // Calculate dot product of this process's subvector. Avoid padding entries
-            int numProcesses = comm.Size;
-            int chunkSize = (n - 1) / numProcesses + 1; // CEILING(numEntries / numThreads)
-            int startGlobal = comm.Rank * chunkSize;
-            int endLocal = Math.Min(chunkSize, n - startGlobal); // For the last process we have a few zeros for padding
-            for (int i = 0; i < endLocal; i++)
-            {
-                result[i] = a * x[i] + b * y[i];
-            }
-        }
-        
-        public static double DotProductMirror(Intracommunicator comm, int n, double[] x, double[] y)
-        {
-            int numProcesses = comm.Size;
-            int chunkSize = (n - 1) / numProcesses + 1; // CEILING(numEntries / numThreads)
-
-            // Calculate dot product of this process's subvector, by accessing only the relevant entries
-            int start = chunkSize * comm.Rank;
-            int end = Math.Min(start + chunkSize, n); // exclusive
+		public static double DotProduct(Intracommunicator comm, int n, double[] x, double[] y)
+		{
+			// Calculate dot product of this process's subvector
             double partialSum = 0;
-            for (int i = start; i < end; i++)
-            {
-                partialSum += x[i] * y[i];
-            }
+			for (int i = 0; i < x.Length; i++)
+			{
+				partialSum += x[i] * y[i];
+			}
 
-            // Sum partial results between different processes. The total result will only be available in root process
-            int root = 0;
-            double totalSum = comm.Reduce(partialSum, Operation<double>.Add, root);
+			// Sum partial results between different processes. The total result will only be available in root process
+			int root = 0;
+			double totalSum = comm.Reduce(partialSum, Operation<double>.Add, root);
 
-            // Send the total result to all other processes
-            comm.Broadcast(ref totalSum, root);
-            return totalSum;
-        }
+			// Send the total result to all other processes
+			comm.Broadcast(ref totalSum, root);
+			return totalSum;
+		}
 
-        public static double DotProductDistributed(Intracommunicator comm, int n, double[] x, double[] y)
-        {
-            // Calculate dot product of this process's subvector. Avoid padding entries
-            int numProcesses = comm.Size;
-            int chunkSize = (n - 1) / numProcesses + 1; // CEILING(numEntries / numThreads)
-            int startGlobal = comm.Rank * chunkSize;
-            int endLocal = Math.Min(chunkSize, n - startGlobal);
-            double partialSum = 0;
-            for (int i = 0; i < endLocal; i++)
-            {
-                partialSum += x[i] * y[i];
-            }
+		public static double[] InvertDiagonalStriped(Intracommunicator comm, int n, double[,] A)
+		{
+			int numProcesses = comm.Size;
+			int chunkSize = (n - 1) / numProcesses + 1; // CEILING(numEntries / numThreads)
+			int startRow = chunkSize * comm.Rank;
+			int endRow = Math.Min(startRow + chunkSize, n); // exclusive
 
-            // Sum partial results between different processes. The total result will only be available in root process
-            int root = 0;
-            double totalSum = comm.Reduce(partialSum, Operation<double>.Add, root);
+			double[] invD = new double[endRow - startRow];
+			for (int i = 0; i < endRow - startRow; i++)
+			{
+				int iGlobal = startRow + i;
+				invD[i] = 1.0 / A[i, iGlobal];
+			}
 
-            // Send the total result to all other processes
-            comm.Broadcast(ref totalSum, root);
-            return totalSum;
-        }
+			return invD;
+		}
 
-        public static double[] InvertDiagonalStriped(Intracommunicator comm, int n, double[,] A)
-        {
-            int numProcesses = comm.Size;
-            int chunkSize = (n - 1) / numProcesses + 1; // CEILING(numEntries / numThreads)
+		public static void MultiplyMatrixVectorStriped(Intracommunicator comm, int m, int n, double[,] A, double[] x, double[] b)
+		{
+			// Gather the whole vector x
+			var xGlobal = new double[n];
+			DistributedUtilities.DistributedToMirrorVector(comm, xGlobal, x);
 
-            int startRow = chunkSize * comm.Rank;
-            int endRow = Math.Min(startRow + chunkSize, n); // exclusive
-            double[] invDLocal = new double[endRow - startRow];
-            for (int i = 0; i < endRow - startRow; i++)
-            {
-                int iGlobal = startRow + i;
-                invDLocal[i] = 1.0 / A[i, iGlobal];
-            }
+            // Define the bounds of this thread
+			int numProcesses = comm.Size;
+			int chunkSize = (n - 1) / numProcesses + 1; // CEILING(numEntries / numThreads)
+			int startRow = chunkSize * comm.Rank;
+			int endRow = Math.Min(startRow + chunkSize, n); // exclusive
 
-            double[] invD = new double[n];
-            DistributedToMirrorVector(comm, invD, invDLocal);
+			// Calculate local parts of the total result vector
+            Array.Clear(b);
+			for (int i = 0; i < endRow - startRow; i++)
+			{
+				for (int j = 0; j < n; ++j)
+				{
+					b[i] += A[i, j] * xGlobal[j];
+				}
+			}
+		}
 
-            return invD;
-        }
-
-        public static void MultiplyMatrixVectorMirrorStriped(Intracommunicator comm, int m, int n, double[,] A, double[] x, double[] b)
-        {
-            Array.Clear(b, 0, n);
-            int numProcesses = comm.Size;
-            int chunkSize = (n - 1) / numProcesses + 1; // CEILING(numEntries / numThreads)
-
-            // Calculate local parts of the total result vector
-            double[] bLocal = new double[chunkSize];
-            int startRow = chunkSize * comm.Rank;
-            int endRow = Math.Min(startRow + chunkSize, n); // exclusive
-            for (int i = 0; i < endRow - startRow; i++)
-            {
-                for (int j = 0; j < n; j++)
-                {
-                    bLocal[i] += A[i, j] * x[j];
-                }
-            }
-
-            // Right now the local vector of each process only stores a part of the total result.
-            // In each process we need a global vector that contains all entries
-            DistributedToMirrorVector(comm, b, bLocal);
-        }
-
-        public static void MultiplyPointwiseMirror(Intracommunicator comm, int n, double[] x, double[] y, double[] result)
-        {
-            // We need the result in all processes. Therefore we have to do all operations for each process.
-            for (int i = 0; i < n; i++)
-            {
-                result[i] = x[i] * y[i];
-            }
-        }
-
-        public static void DistributedToMirrorVectorOLD(Intracommunicator comm, double[] globalVector, double[] localVector)
-        {
-            int globalSize = globalVector.Length;
-            int numProcesses = comm.Size;
-            int chunkSize = (globalSize - 1) / numProcesses + 1; // CEILING(numEntries / numThreads)
-
-            // Gather all local vectors to all processes
-            double[][] localVectors = new double[numProcesses][];
-            comm.Allgather(localVector, ref localVectors); // More efficient than the next commented-out code
-            //int root = 0;
-            //comm.Gather(localVector, root, ref localVectors);
-            //comm.Broadcast(ref localVectors, root);
-
-            // Each process copies all these local vectors into the global vector
-            for (int p = 0; p < numProcesses; p++)
-            {
-                int startY = p * chunkSize;
-                int count = Math.Min(chunkSize, globalSize - startY);
-                Array.Copy(localVectors[p], 0, globalVector, startY, count);
-                startY += chunkSize;
-            }
-        }
-
-        public static void DistributedToMirrorVector(Intracommunicator comm, double[] globalVector, double[] localVector)
-        {
-            int globalSize = globalVector.Length;
-            int numProcesses = comm.Size;
-            int chunkSize = (globalSize - 1) / numProcesses + 1; // CEILING(numEntries / numThreads)
-
-            // Define how many entries each local vector has
-            int[] numLocalEntries = new int[numProcesses];
-            Array.Fill(numLocalEntries, chunkSize);
-            //numLocalEntries[numProcesses - 1] = globalSize - chunkSize * (numProcesses - 1); // Adjust the last process's contribution
-
-			// Gather all local vector to the root process and then broadcast to the rest
-            int root = 0;
-            double[] buffer = new double[chunkSize * numProcesses]; // temporary buffer
-			comm.GatherFlattened(localVector, numLocalEntries, root, ref buffer);
-			comm.Broadcast(ref buffer, root);
-
-            // Copy the active part of the buffer to the global vector
-            Array.Copy(buffer, globalVector, globalSize);
-        }
+		public static void MultiplyPointwise(Intracommunicator comm, int n, double[] x, double[] y, double[] result)
+		{
+			// Each process gets an array with only its corresponding entries
+			for (int i = 0; i < x.Length; i++)
+			{
+				result[i] = x[i] * y[i];
+			}
+		}
     }
 }

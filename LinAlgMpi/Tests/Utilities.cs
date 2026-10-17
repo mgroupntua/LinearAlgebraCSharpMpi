@@ -74,27 +74,5 @@ namespace LinAlgMpi.Tests
 
 			return localVector;
 		}
-
-		public static double[,] DistributeMatrixStriped(Intracommunicator comm, double[,] globalMatrix)
-		{
-			int numRows = globalMatrix.GetLength(0);
-			int numColumns = globalMatrix.GetLength(1);
-			int numProcesses = comm.Size;
-			int chunkSize = (numRows - 1) / numProcesses + 1; // CEILING(numEntries / numThreads)
-
-			// Copy the relevant entries of this process to a new array
-			double[,] localMatrix = new double[chunkSize, numColumns];
-			int startRow = chunkSize * comm.Rank;
-			int endRow = Math.Min(startRow + chunkSize, numRows); // exclusive
-			for (int i = 0; i < endRow - startRow; i++)
-			{
-				for (int j = 0; j < numColumns; ++j)
-				{
-					localMatrix[i, j] = globalMatrix[startRow + i, j];
-				}
-			}
-
-			return localMatrix;
-		}
 	}
 }
