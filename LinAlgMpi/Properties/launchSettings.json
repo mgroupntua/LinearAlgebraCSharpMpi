@@ -12,7 +12,7 @@
     "MpiMultiMachines": {
       "commandName": "Executable",
       "executablePath": "mpiexec",
-      "commandLineArgs": "-n 4 -machinefile \"$(SolutionDir)hosts\\lan-hosts.txt\" \"$(TargetDir)$(TargetName).exe\""
+      "commandLineArgs": "-n 4 -machinefile \"$(SolutionDir)hosts\\lan_hosts.txt\" \"$(TargetDir)$(TargetName).exe\""
     }
   }
 }
